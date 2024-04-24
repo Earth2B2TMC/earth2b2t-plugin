@@ -1,0 +1,16 @@
+name: 'Earth2B2T'
+version: '0.0.1'
+description: 'Skriptアンチ多すぎるので頑張ってJavaでプラグインを書いてみます'
+author: 'nennneko5787'
+api-version: '1.17'
+depend: ['LunaChat', 'floodgate', 'ProtocolLib']
+main: com.nennneko5787.earth2b2tplugin.Main
+commands:
+  earth2b2t: # コマンドの名前
+    usage: "/<command>" # コマンドの短い説明
+    description: "Show the plugin version / プラグインのバージョンを表示します" # コマンドの説明
+    aliases: # コマンドの別名
+      - 2b2t
+      - earth
+      - e2e
+      - 2e
