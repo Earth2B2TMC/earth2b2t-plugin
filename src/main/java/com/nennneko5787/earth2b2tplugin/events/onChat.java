@@ -28,7 +28,6 @@ import java.util.UUID;
 import java.net.URLEncoder;
 
 public class onChat implements Listener {
-	private static final Map<String, Map<String, String>> cache = new HashMap<>();
 
 	@EventHandler(priority = EventPriority.LOWEST)
 	public void onPlayerChat(AsyncPlayerChatEvent event) {
@@ -41,17 +40,15 @@ public class onChat implements Listener {
 		if (floodgateApi.isFloodgatePlayer(event.getPlayer().getUniqueId())) {
 			sourceLanguage = floodgateApi.getPlayer(event.getPlayer().getUniqueId()).getLanguageCode().toLowerCase();
 		} else {
-			Map<UUID, String> playerLocales = SettingsPacketListener.getPlayerLocales();
-			sourceLanguage = playerLocales.get(event.getPlayer().getUniqueId());
-		}
-		final String finalSourceLanguage = sourceLanguage;
+			sourceLanguage = event.getPlayer().getLocale().toLowerCase();
+    }
 
 		Boolean skipJapanize = false;
-		if ( !skipJapanize &&
-				( event.getMessage().getBytes(StandardCharsets.UTF_8).length > event.getMessage().length() ||
+		if ( ( event.getMessage().getBytes(StandardCharsets.UTF_8).length > event.getMessage().length() ||
 					event.getMessage().matches("[ \\uFF61-\\uFF9F]+") ) ) {
 			skipJapanize = true;
 		}
+
 		Bukkit.getServer().getLogger().info(sourceLanguage);
 
 		if (sourceLanguage == "ja_jp" && !event.getMessage().startsWith("$") && lunachatapi.isPlayerJapanize(event.getPlayer().getName()) && !skipJapanize) {
@@ -75,79 +72,78 @@ public class onChat implements Listener {
 				targetLanguage = recipient.getLocale();
 			}
 
-			if (!sourceLanguage.equals(targetLanguage)) {
-				Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-					String translatedMessage = sendHttpRequest(message, finalSourceLanguage, targetLanguage);
-					
-					if (translatedMessage == null) {
-						translatedMessage = "§cFailed to translate / 翻訳に失敗しました";
-					}
-					
-					String formattedMessage = "[" + ChatColor.LIGHT_PURPLE + "Translated" + ChatColor.RESET + "]<" + event.getPlayer().getDisplayName() + "> " + translatedMessage + " " + ChatColor.GRAY + event.getMessage();
-					
-					recipient.sendMessage(formattedMessage);
-				});
-			}
+      Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        Translation translation  = null;
+        String translatedMessage = null;
+        try {
+          translation = translate(message, targetLanguage);
+          translatedMessage = translation.text;
+        } catch (Exception e) {
+          System.out.println("§cFailed to translate / 翻訳に失敗しました");
+          return;
+        }
+
+        if( targetLanguage.startsWith(translation.lang ) )
+          return;
+
+        String formattedMessage = 
+          ChatColor.LIGHT_PURPLE + "[" + 
+          ChatColor.RESET        + "TL: " + 
+          ChatColor.BLUE         + translation.lang + 
+          ChatColor.RESET        + " -> " +
+          ChatColor.GREEN        + targetLanguage + 
+          ChatColor.LIGHT_PURPLE + "] " +
+          ChatColor.RESET        + "<" + event.getPlayer().getDisplayName() + "> " + translatedMessage + " " + 
+          ChatColor.GRAY         + event.getMessage();
+        
+        recipient.sendMessage(formattedMessage);
+      });
 		}
 	}
 
-	private String sendHttpRequest(String originalMessage, String sourceLanguage, String targetLanguage) {
-		String cachedTranslation = getTranslationFromCache(originalMessage, sourceLanguage, targetLanguage);
-		if (cachedTranslation != null) {
-			return cachedTranslation;
-		}
+  public static class Translation {
+    public Translation() {
+      lang = "";
+      text = "";
+    }
+    
+    public String lang;
+    public String text;
+  };
 
-		String encodedMessage = URLEncoder.encode(originalMessage, StandardCharsets.UTF_8);
+  private static Translation extractTranslatedText(String jsonResponse) {
+    String[] parts = jsonResponse.split("\"");
+    System.out.println( jsonResponse );
 
-		try {
-			String urlString = "https://script.google.com/macros/s/AKfycbzzGZ0cx9PlLvY7vZDzYOrscdoaJ_uX-aXgbisFK1yFA0PR2vZvSZ6uqAACcbq5NgTCHA/exec?text="
-					+ encodedMessage + "&source=" + sourceLanguage + "&target=" + targetLanguage;
-			URL url = new URL(urlString);
-			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-			connection.setRequestMethod("GET");
+    Translation translation = new Translation();
 
-			int responseCode = connection.getResponseCode();
+    if (parts.length >= 2) {
+      translation.text = parts[1];
+      translation.lang = parts[parts.length - 2];
+    }
 
-			if (responseCode == HttpURLConnection.HTTP_OK) {
-				BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-				StringBuilder response = new StringBuilder();
-				String inputLine;
-				
-				while ((inputLine = in.readLine()) != null) {
-					response.append(inputLine);
-				}
-				in.close();
+    return translation;
+  }
 
-				Bukkit.getServer().getLogger().info(response.toString());
-				String[] parts = response.toString().split("\n");
-				if (parts.length > 0 && parts[0].equals("200")) {
-					if (parts.length > 1) {
-						cacheTranslation(originalMessage, sourceLanguage, targetLanguage, parts[1]);
-						return parts[1];
-					}else{
-						return null;
-					}
-				}else{
-					return null;
-				}
-			} else {
-				System.out.println("HTTP request failed with status code: " + responseCode);
-			}
-		} catch (IOException e) {
-			System.out.println("Failed to send HTTP request: " + e.getMessage());
-		}
+  public static Translation translate(String text, String targetLanguage) throws IOException {
+      String encodedText = URLEncoder.encode(text, "UTF-8");
+      String urlStr = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=" + targetLanguage + "&dt=t&q=" + encodedText;
 
-		return null;
-	}
+      URL url = new URL(urlStr);
+      HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+      connection.setRequestMethod("GET");
 
-	private String getTranslationFromCache(String originalMessage, String sourceLanguage, String targetLanguage) {
-		Map<String, String> sourceCache = cache.getOrDefault(sourceLanguage, new HashMap<>());
-		return sourceCache.getOrDefault(originalMessage + targetLanguage, null);
-	}
+      BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));
+      StringBuilder response = new StringBuilder();
+      String line;
 
-	private void cacheTranslation(String originalMessage, String sourceLanguage, String targetLanguage, String translatedMessage) {
-		Map<String, String> sourceCache = cache.getOrDefault(sourceLanguage, new HashMap<>());
-		sourceCache.put(originalMessage + targetLanguage, translatedMessage);
-		cache.put(sourceLanguage, sourceCache);
-	}
+      while ((line = reader.readLine()) != null) {
+          response.append(line);
+      }
+      reader.close();
+
+      // JSON 応答から翻訳されたテキストを抽出します
+      Translation translatedText = extractTranslatedText(response.toString());
+      return translatedText;
+  }
 }
