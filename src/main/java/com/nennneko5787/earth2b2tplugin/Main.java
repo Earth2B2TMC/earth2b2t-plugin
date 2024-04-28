@@ -6,6 +6,8 @@ import com.nennneko5787.earth2b2tplugin.events.onJoinPlayer;
 import com.nennneko5787.earth2b2tplugin.events.onQuitPlayer;
 import com.nennneko5787.earth2b2tplugin.events.onChat;
 import com.nennneko5787.earth2b2tplugin.events.Earth2B2TCommandExecutor;
+import com.nennneko5787.earth2b2tplugin.events.HelpCommandListener;
+
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -32,6 +34,7 @@ public class Main extends JavaPlugin {
         protocolManager.addPacketListener(new SettingsPacketListener(plugin));
 
         getCommand("earth2b2t").setExecutor(new Earth2B2TCommandExecutor());
+        getCommand("help").setExecutor(new HelpCommandListener());
 
         getLogger().info("Events registered");
 
@@ -49,7 +52,7 @@ public class Main extends JavaPlugin {
             double[] ticksperseconds = Bukkit.getTPS();
             double tps = Math.floor(ticksperseconds[2]);
             for (Player player : Bukkit.getOnlinePlayers()) {
-                player.setPlayerListHeaderFooter("\n    §bEa§2rth§b2B2§2T§r    \n    Players online / Max: "+ Bukkit.getOnlinePlayers().size() +" / "+ Bukkit.getMaxPlayers() +"    \n", "    Ping: "+ player.getPing() +" TPS: "+ tps +"     ");
+                player.setPlayerListHeaderFooter("\n    §bEa§2rth§b2B2§2T§r    \n    Players online / Max: "+ Bukkit.getOnlinePlayers().size() +" / "+ Bukkit.getMaxPlayers() +"    \n", "    Ping: "+ player.getPing() +"ms TPS: "+ tps +"     ");
             }
         }
     }

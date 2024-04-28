@@ -14,3 +14,6 @@ commands:
       - earth
       - e2e
       - 2e
+  help:
+    usage: "/help"
+    description: Displays a list of commands that can be used with Earth2B2T. / Earth2B2Tで使えるコマンドの一覧を表示します。
